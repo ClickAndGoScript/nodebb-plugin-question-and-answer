@@ -412,10 +412,6 @@ async function markSolved(uid, tid, pid, isSolved) {
 			db.sortedSetAdd('topics:solved', Date.now(), tid),
 			topics.events.log(tid, { type: 'qanda.solved', uid }),
 		]);
-		
-		// אם זה לא היה מסומן כשאלה לפני כן, נתעד גם את האירוע הזה
-		// (אופציונלי, לטובת ה-Timeline של הנושא)
-		await topics.events.log(tid, { type: 'qanda.as_question', uid });
 
 		if (pid) {
 			const data = await posts.getPostData(pid);
