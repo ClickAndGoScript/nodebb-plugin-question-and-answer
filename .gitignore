@@ -219,3 +219,4 @@ node_modules/
 
 *.sublime-project
 *.sublime-workspace
+nodebb-plugin-question-and-answer.xml

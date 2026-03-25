@@ -201,8 +201,9 @@ plugin.addThreadTool = async function (hookData) {
 		return hookData;
 	}
 	const isSolved = parseInt(hookData.topic.isSolved, 10);
+	const isQuestion = parseInt(hookData.topic.isQuestion, 10);
 
-	if (parseInt(hookData.topic.isQuestion, 10)) {
+	if (isQuestion) {
 		hookData.tools = hookData.tools.concat([
 			{
 				class: `toggleSolved ${isSolved ? 'topic-solved' : 'topic-unsolved'}`,
@@ -216,11 +217,19 @@ plugin.addThreadTool = async function (hookData) {
 			},
 		]);
 	} else {
-		hookData.tools.push({
-			class: 'toggleQuestionStatus',
-			title: '[[qanda:thread.tool.as_question]]',
-			icon: 'fa-question-circle',
-		});
+		// כאן הוספנו את האפשרות לסמן כנפתר גם אם זה לא הוגדר כשאלה עדיין
+		hookData.tools = hookData.tools.concat([
+			{
+				class: 'toggleSolved topic-unsolved',
+				title: '[[qanda:thread.tool.mark_solved]]',
+				icon: 'fa-check-circle',
+			},
+			{
+				class: 'toggleQuestionStatus',
+				title: '[[qanda:thread.tool.as_question]]',
+				icon: 'fa-question-circle',
+			},
+		]);
 	}
 	return hookData;
 };
@@ -233,8 +242,11 @@ plugin.addPostTool = async function (hookData) {
 
 	data.isSolved = parseInt(data.isSolved, 10) === 1;
 	data.isQuestion = parseInt(data.isQuestion, 10) === 1;
+	
 	const canSolve = await canSetAsSolved(data.tid, hookData.uid);
-	if (canSolve && data.isQuestion &&
+	
+	// הסרנו את התנאי data.isQuestion
+	if (canSolve && 
 		parseInt(hookData.pid, 10) !== parseInt(data.solvedPid, 10) &&
 		parseInt(hookData.pid, 10) !== parseInt(data.mainPid, 10)) {
 		hookData.tools.push({
@@ -383,8 +395,9 @@ async function toggleSolved(uid, tid) {
 }
 
 async function markSolved(uid, tid, pid, isSolved) {
+	// אם מסמנים כנפתר, אנחנו מכריחים את הנושא להיות מוגדר כשאלה (isQuestion: 1)
 	const updatedTopicFields = isSolved ?
-		{ isSolved: 1, solvedPid: pid }	:
+		{ isSolved: 1, solvedPid: pid, isQuestion: 1 } :
 		{ isSolved: 0, solvedPid: 0 };
 
 	if (plugin._settings.toggleLock === 'on') {
@@ -399,6 +412,11 @@ async function markSolved(uid, tid, pid, isSolved) {
 			db.sortedSetAdd('topics:solved', Date.now(), tid),
 			topics.events.log(tid, { type: 'qanda.solved', uid }),
 		]);
+		
+		// אם זה לא היה מסומן כשאלה לפני כן, נתעד גם את האירוע הזה
+		// (אופציונלי, לטובת ה-Timeline של הנושא)
+		await topics.events.log(tid, { type: 'qanda.as_question', uid });
+
 		if (pid) {
 			const data = await posts.getPostData(pid);
 			await rewards.checkConditionAndRewardUser({
